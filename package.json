@@ -1,0 +1,80 @@
+{
+  "name": "unity-shader-formatter",
+  "displayName": "Unity Shader Formatter",
+  "description": "Formatter for Unity .shader and .compute files",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "publisher": "Newyellow",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/newyellow/vscode-unity-shader-formatter.git"
+  },
+  "categories": [
+    "Formatters",
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:UnityShader",
+    "onLanguage:unity-shaderlab-shader",
+    "onLanguage:unity-compute-shader"
+  ],
+  "main": "./out/extension.js",
+  "capabilities": {
+    "documentFormattingProvider": true
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "UnityShader",
+        "aliases": ["Unity Shader"],
+        "extensions": [".shader", ".compute"]
+      },
+      {
+        "id": "unity-shaderlab-shader",
+        "aliases": ["Unity Shader Lab", "ShaderLab"],
+        "extensions": [".shader"]
+      },
+      {
+        "id": "unity-compute-shader",
+        "aliases": ["Unity Compute Shader", "Compute Shader"],
+        "extensions": [".compute"]
+      }
+    ],
+    "commands": [
+      {
+        "command": "unity-shader.format",
+        "title": "Format Unity Shader"
+      }
+    ],
+    "configurationDefaults": {
+      "[shaderlab]": {
+        "editor.defaultFormatter": "newyellow.unity-shader-formatter"
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.96.0"
+  },
+  "dependencies": {
+    "typescript": "^5.7.3"
+  },
+  "keywords": [
+    "unity",
+    "shader",
+    "compute",
+    "formatter",
+    "UnityShader"
+  ],
+  "homepage": "https://newyellow.xyz",
+  "bugs": {
+    "url": "https://github.com/newyellow/vscode-unity-shader-formatter/issues"
+  }
+}
