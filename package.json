@@ -2,11 +2,11 @@
   "name": "unity-shader-formatter",
   "displayName": "Unity Shader Formatter",
   "description": "Formatter for Unity .shader and .compute files",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "engines": {
-    "vscode": "^1.96.0"
+    "vscode": "^1.60.0"
   },
-  "publisher": "Newyellow",
+  "publisher": "newyellow",
   "icon": "images/icon.png",
   "repository": {
     "type": "git",
@@ -49,9 +49,20 @@
         "title": "Format Unity Shader"
       }
     ],
-    "configurationDefaults": {
-      "[shaderlab]": {
-        "editor.defaultFormatter": "newyellow.unity-shader-formatter"
+    "configuration": {
+      "type": "object",
+      "title": "Unity Shader Formatter",
+      "properties": {
+        "unityShaderFormatter.indentSize": {
+          "type": "number",
+          "default": 4,
+          "description": "Number of spaces for indentation."
+        },
+        "unityShaderFormatter.useSpaces": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use spaces instead of tabs for indentation."
+        }
       }
     }
   },
@@ -61,7 +72,7 @@
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
-    "@types/vscode": "^1.96.0"
+    "@types/vscode": "^1.60.0"
   },
   "dependencies": {
     "typescript": "^5.7.3"
