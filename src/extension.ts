@@ -154,6 +154,7 @@ function formatUnityComputeShader(text: string): string {
             if (!line.includes('<') || !line.includes('>')) {
                 line = line
                     .replace(/(?<![=+\-*/<>!&|^%])([=+\-*/<>!&|^%])(?![=+\-*/<>!&|^%])/g, ' $1 ')
+                    .replace(/(\de|(?:^|[(+\-])[\t ]*)[\t ]*?([+\-])[\t ]*/g, '$1$2')
                     .replace(/([=+\-*<>!&|^%]{2})/g, ' $1 ')
                     .replace(/\s*([,;])\s*/g, '$1 ')
                     .replace(/\s*:\s*/g, ' : ')
@@ -242,6 +243,7 @@ function formatUnityShaderlabShader(text: string): string {
             if (!line.includes('<') || !line.includes('>')) {
                 line = line
                     .replace(/(?<![=+\-*/<>!&|^%])([=+\-*/<>!&|^%])(?![=+\-*/<>!&|^%])/g, ' $1 ')
+                    .replace(/(\de|(?:^|[(+\-])[\t ]*)[\t ]*?([+\-])[\t ]*/g, '$1$2')
                     .replace(/([=+\-*<>!&|^%]{2})/g, ' $1 ')
                     .replace(/\s*([,;])\s*/g, '$1 ')
                     .replace(/\s*:\s*/g, ' : ')
