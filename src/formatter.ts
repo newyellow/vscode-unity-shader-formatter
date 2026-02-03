@@ -3,6 +3,10 @@ export interface FormatterOptions {
     useSpaces?: boolean;
 }
 
+interface FormatConfig {
+    isPassthroughLine?: (line: string) => boolean;
+}
+
 function getIndent(options?: FormatterOptions): string {
     const indentSize = options?.indentSize ?? 4;
     const useSpaces = options?.useSpaces ?? true;
@@ -35,6 +39,23 @@ function isUnaryContext(prevChar: string | null): boolean {
         return true;
     }
     return /[=([{,;:+\-*/%<>!&|^]/.test(prevChar);
+}
+
+function protectStringLiterals(line: string): { line: string; placeholders: string[] } {
+    const placeholders: string[] = [];
+    const protectedLine = line.replace(/"([^"]+)"/g, (match) => {
+        placeholders.push(match);
+        return `@str${placeholders.length}@`;
+    });
+    return { line: protectedLine, placeholders };
+}
+
+function restoreStringLiterals(line: string, placeholders: string[]): string {
+    let restored = line;
+    placeholders.forEach((str, index) => {
+        restored = restored.replace(`@str${index + 1}@`, str);
+    });
+    return restored;
 }
 
 function formatMathOperators(line: string): string {
@@ -193,7 +214,32 @@ function trimBracketSpacing(line: string): string {
     return result;
 }
 
-export function formatUnityComputeShader(text: string, options?: FormatterOptions): string {
+function normalizeSpacing(line: string): string {
+    const { line: protectedLine, placeholders } = protectStringLiterals(line);
+    let normalized = protectedLine;
+
+    if (!normalized.includes('<') || !normalized.includes('>')) {
+        normalized = normalized
+            .replace(/=\s+=/g, '==')
+            .replace(/\/\s+\//g, '//')
+            .replace(/\s*\.\s*/g, '.')
+            .replace(/(\de|(?:^|[(+\-])[\t ]*)[\t ]*?([+\-])[\t ]*/g, '$1$2')
+            .replace(/(?<![=<>!&|^%])([=<>!&|^%])(?![=<>!&|^%])/g, ' $1 ')
+            .replace(/([=<>!&|^%]{2})/g, ' $1 ')
+            .replace(/\s*([,;])\s*/g, '$1 ')
+            .replace(/\s*:\s*/g, ' : ')
+            .replace(/\(\s+/g, '(')
+            .replace(/\s+\)/g, ')')
+            .replace(/\s+/g, ' ')
+            .trim();
+        normalized = formatMathOperators(normalized);
+        normalized = trimBracketSpacing(normalized);
+    }
+
+    return restoreStringLiterals(normalized, placeholders);
+}
+
+function formatDocument(text: string, options: FormatterOptions | undefined, config: FormatConfig): string {
     const lines = text.split(/\r?\n/);
     const formattedLines: string[] = [];
     let indentLevel = 0;
@@ -208,8 +254,8 @@ export function formatUnityComputeShader(text: string, options?: FormatterOption
             continue;
         }
 
-        // Don't indent preprocessor directives and kernel declarations
-        if (line.startsWith('#') || line.startsWith('[numthreads')) {
+        // Passthrough lines (no indentation or spacing changes)
+        if (config.isPassthroughLine?.(line)) {
             formattedLines.push(line);
             continue;
         }
@@ -233,36 +279,7 @@ export function formatUnityComputeShader(text: string, options?: FormatterOption
 
         // Fix operator spacing
         if (!line.startsWith('#')) {
-            // Array to hold the found strings
-            const stringPlaceholders: string[] = [];
-
-            // Regular expression to find strings and replace them with placeholders
-            line = line.replace(/"([^"]+)"/g, (match) => {
-                stringPlaceholders.push(match); // Store the found string
-                return `@str${stringPlaceholders.length}@`; // Replace with placeholder
-            });
-
-            if (!line.includes('<') || !line.includes('>')) {
-                line = line
-                    .replace(/=\s+=/g, '==')
-                    .replace(/\/\s+\//g, '//')
-                    .replace(/(\de|(?:^|[(+\-])[\t ]*)[\t ]*?([+\-])[\t ]*/g, '$1$2')
-                    .replace(/(?<![=<>!&|^%])([=<>!&|^%])(?![=<>!&|^%])/g, ' $1 ')
-                    .replace(/([=<>!&|^%]{2})/g, ' $1 ')
-                    .replace(/\s*([,;])\s*/g, '$1 ')
-                    .replace(/\s*:\s*/g, ' : ')
-                    .replace(/\(\s+/g, '(')
-                    .replace(/\s+\)/g, ')')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-                line = formatMathOperators(line);
-                line = trimBracketSpacing(line);
-            }
-
-            // Restore the original strings from placeholders
-            stringPlaceholders.forEach((str, index) => {
-                line = line.replace(`@str${index + 1}@`, str);
-            });
+            line = normalizeSpacing(line);
 
             // if both includes
             if (line.includes('{') && line.includes('}')) {
@@ -295,92 +312,12 @@ export function formatUnityComputeShader(text: string, options?: FormatterOption
     return formattedLines.join('\n');
 }
 
+export function formatUnityComputeShader(text: string, options?: FormatterOptions): string {
+    return formatDocument(text, options, {
+        isPassthroughLine: (line) => line.startsWith('#') || line.startsWith('[numthreads')
+    });
+}
+
 export function formatUnityShaderlabShader(text: string, options?: FormatterOptions): string {
-    const lines = text.split(/\r?\n/);
-    const formattedLines: string[] = [];
-    let indentLevel = 0;
-    const indent = getIndent(options);
-
-    for (let i = 0; i < lines.length; i++) {
-        let line = lines[i].trim();
-
-        // Skip empty lines
-        if (line.length === 0) {
-            formattedLines.push('');
-            continue;
-        }
-
-        // Handle braces
-        if (line === '{') {
-            formattedLines.push(indent.repeat(Math.max(0, indentLevel)) + line);
-            indentLevel++;
-            continue;
-        } else if (line === '}' || line === '};') {
-            indentLevel = Math.max(0, indentLevel - 1);
-            formattedLines.push(indent.repeat(indentLevel) + line);
-            continue;
-        }
-
-        // Fix operator spacing
-        if (!line.startsWith('#')) {
-            // Array to hold the found strings
-            const stringPlaceholders: string[] = [];
-
-            // Regular expression to find strings and replace them with placeholders
-            line = line.replace(/"([^"]+)"/g, (match) => {
-                stringPlaceholders.push(match); // Store the found string
-                return `@str${stringPlaceholders.length}@`; // Replace with placeholder
-            });
-
-            if (!line.includes('<') || !line.includes('>')) {
-                line = line
-                    .replace(/=\s+=/g, '==')
-                    .replace(/\/\s+\//g, '//')
-                    .replace(/(\de|(?:^|[(+\-])[\t ]*)[\t ]*?([+\-])[\t ]*/g, '$1$2')
-                    .replace(/(?<![=<>!&|^%])([=<>!&|^%])(?![=<>!&|^%])/g, ' $1 ')
-                    .replace(/([=<>!&|^%]{2})/g, ' $1 ')
-                    .replace(/\s*([,;])\s*/g, '$1 ')
-                    .replace(/\s*:\s*/g, ' : ')
-                    .replace(/\(\s+/g, '(')
-                    .replace(/\s+\)/g, ')')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-                line = formatMathOperators(line);
-                line = trimBracketSpacing(line);
-            }
-
-            // Restore the original strings from placeholders
-            stringPlaceholders.forEach((str, index) => {
-                line = line.replace(`@str${index + 1}@`, str);
-            });
-
-            // if both includes
-            if (line.includes('{') && line.includes('}')) {
-                if (line.startsWith('}')) {
-                    indentLevel = Math.max(0, indentLevel - 1);
-                    formattedLines.push(indent.repeat(indentLevel) + line);
-                    indentLevel++; // makes it unchange in the result
-                }
-                else {
-                    formattedLines.push(indent.repeat(indentLevel) + line);
-                }
-            }
-            else if (line.includes('{')) {
-                formattedLines.push(indent.repeat(indentLevel) + line);
-                indentLevel++;
-            }
-            else if (line.includes('}')) {
-                indentLevel = Math.max(0, indentLevel - 1);
-                formattedLines.push(indent.repeat(indentLevel) + line);
-            }
-            else {
-                formattedLines.push(indent.repeat(indentLevel) + line);
-            }
-        }
-        else {
-            formattedLines.push(indent.repeat(indentLevel) + line);
-        }
-    }
-
-    return formattedLines.join('\n');
+    return formatDocument(text, options, {});
 }
