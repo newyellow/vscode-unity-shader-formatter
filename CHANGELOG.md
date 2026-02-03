@@ -2,7 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.0.3]
+- Added scientific notation handling for `e`/`E` so values like `1e-6` are preserved.
+
+## [1.0.2]
 - Added a local Node-based test runner under `_localTest` to format test files without packaging the extension.
 - Refactored the formatter into a shared module and streamlined the formatting pipeline for maintainability.
 - Improved operator spacing rules for compound operators, unary signs, comment slashes, and dot member access.

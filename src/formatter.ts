@@ -30,6 +30,15 @@ function getPrevNonSpace(value: string): string | null {
     return null;
 }
 
+function getPrevNonSpaceIndex(value: string): number {
+    for (let i = value.length - 1; i >= 0; i--) {
+        if (value[i] !== ' ') {
+            return i;
+        }
+    }
+    return -1;
+}
+
 function isLetterOrDigit(value: string): boolean {
     return /[A-Za-z0-9_]/.test(value);
 }
@@ -39,6 +48,24 @@ function isUnaryContext(prevChar: string | null): boolean {
         return true;
     }
     return /[=([{,;:+\-*/%<>!&|^]/.test(prevChar);
+}
+
+function isExponentSignContext(value: string, prevIndex: number): boolean {
+    if (prevIndex < 0) {
+        return false;
+    }
+    const prevChar = value[prevIndex];
+    if (prevChar !== 'e' && prevChar !== 'E') {
+        return false;
+    }
+    for (let i = prevIndex - 1; i >= 0; i--) {
+        const ch = value[i];
+        if (ch === ' ') {
+            continue;
+        }
+        return /[0-9.]/.test(ch);
+    }
+    return false;
 }
 
 function getNextNonEmptyLine(lines: string[], startIndex: number): string | null {
@@ -98,7 +125,8 @@ function formatMathOperators(line: string): string {
             continue;
         }
 
-        const prevNonSpace = getPrevNonSpace(result);
+        const prevNonSpaceIndex = getPrevNonSpaceIndex(result);
+        const prevNonSpace = prevNonSpaceIndex >= 0 ? result[prevNonSpaceIndex] : null;
         let j = i + 1;
         while (j < line.length && line[j] === ' ') {
             j++;
@@ -117,6 +145,9 @@ function formatMathOperators(line: string): string {
         const isUnary = (ch === '+' || ch === '-')
             && (isLetterOrDigit(nextChar) || nextChar === '.')
             && isUnaryContext(prevNonSpace);
+        const isExponentSign = (ch === '+' || ch === '-')
+            && (isLetterOrDigit(nextChar) || nextChar === '.')
+            && isExponentSignContext(result, prevNonSpaceIndex);
 
         if (isCompound) {
             result = trimEndSpaces(result);
@@ -137,6 +168,13 @@ function formatMathOperators(line: string): string {
             if (result.length > 0) {
                 result += ' ';
             }
+            result += ch;
+            i = j;
+            continue;
+        }
+
+        if (isExponentSign) {
+            result = trimEndSpaces(result);
             result += ch;
             i = j;
             continue;
@@ -286,6 +324,9 @@ function normalizeSpacing(line: string): string {
         .replace(/=\s+=/g, '==')
         .replace(/\/\s+\//g, '//')
         .replace(/\s*\.\s*/g, '.')
+        .replace(/(\d(?:\.\d+)?)[ \t]*([eE])[ \t]*([+\-])[ \t]*(\d+)/g, '$1$2$3$4')
+        .replace(/(\d(?:\.\d+)?)[ \t]*([eE])[ \t]*(\d+)/g, '$1$2$3')
+        .replace(/(\d(?:\.\d+)?)[eE]\s*([+\-])\s*(\d+)/g, '$1e$2$3')
         .replace(/(\de|(?:^|[(+\-])[\t ]*)[\t ]*?([+\-])[\t ]*/g, '$1$2')
         .replace(/(?<![=!&|^%])([=!&|^%])(?![=!&|^%])/g, ' $1 ')
         .replace(/([=!&|^%]{2})/g, ' $1 ')

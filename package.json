@@ -2,7 +2,7 @@
   "name": "unity-shader-formatter",
   "displayName": "Unity Shader Formatter",
   "description": "Formatter for Unity .shader and .compute files",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "engines": {
     "vscode": "^1.60.0"
   },

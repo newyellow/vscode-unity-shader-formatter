@@ -34,6 +34,11 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     else   if
     testBB += 100;
 
+    float det =  1  .  0 ;
+
+    if(  det    <    10   e -  6  ||  det > 1 E +  10)
+    det = 0;
+
     int particleIndex = floor(id.x / uNumSeg);
     int frameIndex = id.x % uNumSeg;
 
