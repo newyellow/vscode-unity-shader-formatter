@@ -31,6 +31,9 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     if(  3333    <   =  testAA)
     testBB %  =    2    ;
 
+    else   if
+    testBB += 100;
+
     int particleIndex = floor(id.x / uNumSeg);
     int frameIndex = id.x % uNumSeg;
 

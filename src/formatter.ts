@@ -41,6 +41,33 @@ function isUnaryContext(prevChar: string | null): boolean {
     return /[=([{,;:+\-*/%<>!&|^]/.test(prevChar);
 }
 
+function getNextNonEmptyLine(lines: string[], startIndex: number): string | null {
+    for (let i = startIndex + 1; i < lines.length; i++) {
+        const trimmed = lines[i].trim();
+        if (trimmed.length > 0) {
+            return trimmed;
+        }
+    }
+    return null;
+}
+
+function isControlStatement(line: string): boolean {
+    return /^(?:if|else\s+if|else|for)\b/.test(line);
+}
+
+function shouldIndentNextLine(line: string, nextNonEmptyLine: string | null): boolean {
+    if (!isControlStatement(line)) {
+        return false;
+    }
+    if (line.includes('{') || line.includes('}')) {
+        return false;
+    }
+    if (!nextNonEmptyLine) {
+        return false;
+    }
+    return !nextNonEmptyLine.startsWith('{');
+}
+
 function protectStringLiterals(line: string): { line: string; placeholders: string[] } {
     const placeholders: string[] = [];
     const protectedLine = line.replace(/"([^"]+)"/g, (match) => {
@@ -243,6 +270,7 @@ function formatDocument(text: string, options: FormatterOptions | undefined, con
     const lines = text.split(/\r?\n/);
     const formattedLines: string[] = [];
     let indentLevel = 0;
+    let pendingIndent = false;
     const indent = getIndent(options);
 
     for (let i = 0; i < lines.length; i++) {
@@ -262,7 +290,11 @@ function formatDocument(text: string, options: FormatterOptions | undefined, con
 
         // handling comments
         if (line.startsWith("//")) {
-            formattedLines.push(indent.repeat(Math.max(0, indentLevel)) + line);
+            const extraIndent = pendingIndent ? 1 : 0;
+            if (pendingIndent) {
+                pendingIndent = false;
+            }
+            formattedLines.push(indent.repeat(Math.max(0, indentLevel + extraIndent)) + line);
             continue;
         }
 
@@ -289,11 +321,19 @@ function formatDocument(text: string, options: FormatterOptions | undefined, con
                     indentLevel++; // makes it unchange in the result
                 }
                 else {
-                    formattedLines.push(indent.repeat(indentLevel) + line);
+                    const extraIndent = pendingIndent ? 1 : 0;
+                    if (pendingIndent) {
+                        pendingIndent = false;
+                    }
+                    formattedLines.push(indent.repeat(indentLevel + extraIndent) + line);
                 }
             }
             else if (line.includes('{')) {
-                formattedLines.push(indent.repeat(indentLevel) + line);
+                const extraIndent = pendingIndent ? 1 : 0;
+                if (pendingIndent) {
+                    pendingIndent = false;
+                }
+                formattedLines.push(indent.repeat(indentLevel + extraIndent) + line);
                 indentLevel++;
             }
             else if (line.includes('}')) {
@@ -301,11 +341,24 @@ function formatDocument(text: string, options: FormatterOptions | undefined, con
                 formattedLines.push(indent.repeat(indentLevel) + line);
             }
             else {
-                formattedLines.push(indent.repeat(indentLevel) + line);
+                const extraIndent = pendingIndent ? 1 : 0;
+                if (pendingIndent) {
+                    pendingIndent = false;
+                }
+                formattedLines.push(indent.repeat(indentLevel + extraIndent) + line);
             }
         }
         else {
-            formattedLines.push(indent.repeat(indentLevel) + line);
+            const extraIndent = pendingIndent ? 1 : 0;
+            if (pendingIndent) {
+                pendingIndent = false;
+            }
+            formattedLines.push(indent.repeat(indentLevel + extraIndent) + line);
+        }
+
+        if (!pendingIndent) {
+            const nextNonEmptyLine = getNextNonEmptyLine(lines, i);
+            pendingIndent = shouldIndentNextLine(line, nextNonEmptyLine);
         }
     }
 
