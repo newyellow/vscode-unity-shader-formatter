@@ -3,10 +3,10 @@
 
 int uFrame;
 int uNumParticles;
-int uNumSeg;
+int uNumSeg  ;
 
-RWStructuredBuffer < Particle > bufferParticle;
-RWStructuredBuffer < Particle > bufferAllParticle;
+RWStructuredBuffer    < Particle >  bufferParticle;
+RWStructuredBuffer < Particle    >    bufferAllParticle;
 
 [numthreads(128, 1, 1)]
 void CSMain (uint3 id : SV_DispatchThreadID)

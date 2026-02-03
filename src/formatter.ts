@@ -179,7 +179,7 @@ function trimBracketSpacing(line: string): string {
             }
             continue;
         }
-        if (ch === '<' || ch === '>') {
+        if (ch === '<') {
             let j = i + 1;
             while (j < line.length && line[j] === ' ') {
                 j++;
@@ -191,7 +191,7 @@ function trimBracketSpacing(line: string): string {
                 if (result.length > 0) {
                     result += ' ';
                 }
-                result += ch + '=';
+                result += '<=';
                 result += ' ';
                 i = j + 1;
                 while (i < line.length && line[i] === ' ') {
@@ -200,27 +200,31 @@ function trimBracketSpacing(line: string): string {
                 continue;
             }
 
-            if (ch === '<' && isLetterOrDigit(nextChar)) {
-                let k = j;
-                while (k < line.length && isLetterOrDigit(line[k])) {
-                    k++;
+            let k = j;
+            let isGeneric = true;
+            while (k < line.length) {
+                const current = line[k];
+                if (current === '>') {
+                    break;
                 }
-                let m = k;
-                while (m < line.length && line[m] === ' ') {
-                    m++;
+                if (!isLetterOrDigit(current) && current !== ' ') {
+                    isGeneric = false;
+                    break;
                 }
-                if (m < line.length && line[m] === '>') {
-                    result = trimEndSpaces(result);
-                    result += '<' + line.slice(j, k) + '>';
-                    i = m + 1;
-                    if (i < line.length && line[i] !== ' ') {
-                        result += ' ';
-                    }
-                    while (i < line.length && line[i] === ' ') {
-                        i++;
-                    }
-                    continue;
+                k++;
+            }
+            if (isGeneric && k < line.length && line[k] === '>') {
+                result = trimEndSpaces(result);
+                const inner = line.slice(j, k).trim();
+                result += '<' + inner + '>';
+                i = k + 1;
+                while (i < line.length && line[i] === ' ') {
+                    i++;
                 }
+                if (i < line.length) {
+                    result += ' ';
+                }
+                continue;
             }
 
             if (isLetterOrDigit(nextChar) || nextChar === '.') {
@@ -228,7 +232,40 @@ function trimBracketSpacing(line: string): string {
                 if (result.length > 0) {
                     result += ' ';
                 }
-                result += ch;
+                result += '<';
+                result += ' ';
+                i = j;
+                continue;
+            }
+        }
+
+        if (ch === '>') {
+            let j = i + 1;
+            while (j < line.length && line[j] === ' ') {
+                j++;
+            }
+            const nextChar = j < line.length ? line[j] : '';
+
+            if (nextChar === '=') {
+                result = trimEndSpaces(result);
+                if (result.length > 0) {
+                    result += ' ';
+                }
+                result += '>=';
+                result += ' ';
+                i = j + 1;
+                while (i < line.length && line[i] === ' ') {
+                    i++;
+                }
+                continue;
+            }
+
+            if (isLetterOrDigit(nextChar) || nextChar === '.') {
+                result = trimEndSpaces(result);
+                if (result.length > 0) {
+                    result += ' ';
+                }
+                result += '>';
                 result += ' ';
                 i = j;
                 continue;
@@ -245,23 +282,21 @@ function normalizeSpacing(line: string): string {
     const { line: protectedLine, placeholders } = protectStringLiterals(line);
     let normalized = protectedLine;
 
-    if (!normalized.includes('<') || !normalized.includes('>')) {
-        normalized = normalized
-            .replace(/=\s+=/g, '==')
-            .replace(/\/\s+\//g, '//')
-            .replace(/\s*\.\s*/g, '.')
-            .replace(/(\de|(?:^|[(+\-])[\t ]*)[\t ]*?([+\-])[\t ]*/g, '$1$2')
-            .replace(/(?<![=<>!&|^%])([=<>!&|^%])(?![=<>!&|^%])/g, ' $1 ')
-            .replace(/([=<>!&|^%]{2})/g, ' $1 ')
-            .replace(/\s*([,;])\s*/g, '$1 ')
-            .replace(/\s*:\s*/g, ' : ')
-            .replace(/\(\s+/g, '(')
-            .replace(/\s+\)/g, ')')
-            .replace(/\s+/g, ' ')
-            .trim();
-        normalized = formatMathOperators(normalized);
-        normalized = trimBracketSpacing(normalized);
-    }
+    normalized = normalized
+        .replace(/=\s+=/g, '==')
+        .replace(/\/\s+\//g, '//')
+        .replace(/\s*\.\s*/g, '.')
+        .replace(/(\de|(?:^|[(+\-])[\t ]*)[\t ]*?([+\-])[\t ]*/g, '$1$2')
+        .replace(/(?<![=!&|^%])([=!&|^%])(?![=!&|^%])/g, ' $1 ')
+        .replace(/([=!&|^%]{2})/g, ' $1 ')
+        .replace(/\s*([,;])\s*/g, '$1 ')
+        .replace(/\s*:\s*/g, ' : ')
+        .replace(/\(\s+/g, '(')
+        .replace(/\s+\)/g, ')')
+        .replace(/\s+/g, ' ')
+        .trim();
+    normalized = formatMathOperators(normalized);
+    normalized = trimBracketSpacing(normalized);
 
     return restoreStringLiterals(normalized, placeholders);
 }
