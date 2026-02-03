@@ -1,0 +1,169 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+#include "../Common/CurlNoise.cginc"
+#include "../Common/Rotate.cginc"
+#include "../Common/Random.cginc"
+
+struct Particle {
+  float3 position;
+  float3 positionOrg;
+  float3 velocity;
+  float3 color;
+  float3 random;
+  float scale;
+  float speed;
+  float life;
+  float lifeDecay;
+  uint index;
+  int isFollowing;
+};
+
+RWStructuredBuffer<Particle> bufferParticles;
+
+float uTime;
+float uDeltaTime;
+float uSpeed;
+float uSeed;
+float4 uTargets[3];
+
+float4 uSpawnerPos[3];
+float4 uSpawnerDatas[3];
+float4 uSpawnerColors[3];
+
+float4 uMainTargetPos;
+float uMainTargetRadius;
+
+int uNumTargets;
+
+[numthreads(128,1,1)]  // Defines that we process 128 particles in parallel per thread group
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+  // Get the current particle from the buffer using thread ID
+  Particle p = bufferParticles[id.x];
+
+  float time = uTime * 0.1;  // Slow down the time scale for animation
+
+  p.life -= uDeltaTime;  // Decrease life of particle
+
+  bool doTryRespawn = false;
+
+  if(p.isFollowing == 1)
+  {
+    if(p.life > 0) // if life greater than 0 than move to flowing target
+    {
+      // Select a target point for this particle based on its random value
+      // This distributes particles among different target points
+      uint targetIndex = floor(p.random.x * uNumTargets);
+      float3 target = uTargets[targetIndex].xyz;
+
+      // Calculate distance-based influence
+      // distScale varies between 0.5 and 1.5 based on particle's random value
+      float distScale = lerp(0.5, 1.5, p.random.z);
+      // Smoothly reduce influence as particle gets closer to target (between 1.0*distScale and 2.0*distScale units)
+      float f = smoothstep(1.0 * distScale, 2.0 * distScale, distance(p.position, target));
+      f = lerp(0.2, 1.0, f);  // Remap influence factor between 0.2 and 1.0
+
+      // Calculate direction to target and apply acceleration
+      float3 dir = normalize(target - p.position);
+      // Acceleration varies based on random value and distance influence
+      float3 acc = dir * lerp(1.0, 2.0, p.random.y) * f;
+
+      // Add procedural noise movement
+      // Calculate noise offset based on position and time
+      float posOffset = snoise(p.position * 0.2 - time) * .5 + .5;
+      posOffset = lerp(0.2, 0.6, posOffset);
+      // Add curl noise for more natural, swirling movement
+      float3 noise = curlNoise(p.position * posOffset + uSeed + time);
+      acc += noise;
+
+      // Update particle physics
+      p.velocity += acc * p.speed * 0.0005;  // Apply acceleration
+      p.velocity *= 0.92;                     // Apply drag/damping
+      p.position += p.velocity;               // Update position
+    }
+    else // move toward main target
+    {
+      // Select a target point for this particle based on its random value
+      // This distributes particles among different target points
+      float3 target = uMainTargetPos.xyz;
+
+      // Calculate distance-based influence
+      // distScale varies between 0.5 and 1.5 based on particle's random value
+      float distScale = lerp(0.5, 1.5, p.random.z);
+      // Smoothly reduce influence as particle gets closer to target (between 1.0*distScale and 2.0*distScale units)
+      float f = smoothstep(1.0 * distScale, 2.0 * distScale, distance(p.position, target));
+      f = lerp(0.6, 1.0, f);
+
+      // Calculate direction to target and apply acceleration
+      float3 dir = normalize(target - p.position);
+      // Acceleration varies based on random value and distance influence
+      float3 acc = dir * lerp(1.0, 2.0, p.random.y) * f;
+
+      // Add procedural noise movement
+      // Calculate noise offset based on position and time
+      float posOffset = snoise(p.position * 0.2 - time) * .5 + .5;
+      posOffset = lerp(0.2, 0.6, posOffset);
+      // Add curl noise for more natural, swirling movement
+      float3 noise = curlNoise(p.position * posOffset + uSeed + time);
+      acc += noise;
+
+      // Update particle physics
+      p.velocity += acc * p.speed * 0.0005;  // Apply acceleration
+      p.velocity *= 0.92;                     // Apply drag/damping
+      p.position += p.velocity;               // Update position
+    }
+
+    float distToMainTarget = distance(p.position, uMainTargetPos.xyz);
+
+    if(distToMainTarget < uMainTargetRadius)
+      doTryRespawn = true;
+  }
+  else // not following
+  {
+    p.life -= uDeltaTime;  // Decrease life of particle
+
+    if(p.life < 0) // try respawn
+    {
+      doTryRespawn = true;
+    }
+  }
+
+  if(doTryRespawn) // try respawn
+  {
+    // random pick an index
+    uint spawnerIndex = p.index % 3;
+
+    float spawnerPower = uSpawnerDatas[spawnerIndex].x;
+    float spawnerSpeed = uSpawnerDatas[spawnerIndex].y;
+
+    // respwan
+    float spawnRandomValue = random(float2(p.random.x, p.random.y + uTime));
+      
+    if(spawnRandomValue < spawnerPower) // spawn
+    {
+      p.position = uSpawnerPos[spawnerIndex].xyz;
+      p.life = lerp(6.0, 24.0, random(float2(p.random.x, p.random.y + uTime)));
+      p.velocity = float3(0.0, 0.0, 0.0);
+
+      p.scale = 3.0;
+
+      p.color = uSpawnerColors[spawnerIndex].xyz;
+      p.isFollowing = 1;
+    }
+    else
+    {
+      // put in a far away place
+      p.position = uSpawnerPos[spawnerIndex].xyz + float3(0.0, 10.0, 0.0);
+      p.life = 2.0;
+      
+      p.velocity = float3(0.0, 0.0, 0.0);
+
+      p.color = uSpawnerColors[spawnerIndex].xyz;
+      p.isFollowing = 0;
+    }
+  }
+
+  // Write the updated particle back to the buffer
+  bufferParticles[id.x] = p;
+}

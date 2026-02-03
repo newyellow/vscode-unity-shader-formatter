@@ -1,0 +1,41 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+struct Particle {
+    float3 position;
+    float3 positionOrg;
+    float3 velocity;
+    float3 color;
+    float3 random;
+    float scale;
+    float speed;
+    float life;
+    float lifeDecay;
+    uint index;
+    uint isFollowing;
+};
+
+int uFrame;
+int uNumParticles;
+int uNumSeg;
+
+RWStructuredBuffer<Particle> bufferParticle;
+RWStructuredBuffer<Particle> bufferAllParticle;
+
+[numthreads(128,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+    {
+    Particle p = bufferAllParticle[id.x];
+
+    int particleIndex = floor(id.x / uNumSeg);
+    int frameIndex = id.x % uNumSeg;
+
+        if(uFrame == frameIndex) {
+        p.position = bufferParticle[particleIndex].position;
+        p.random.x = 1.0;
+        } else {
+        p.random.x = 0.0;
+    }
+
+    bufferAllParticle[id.x] = p;
+}
